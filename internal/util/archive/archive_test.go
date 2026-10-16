@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,6 +69,12 @@ func TestExtractHonorsCancellation(t *testing.T) {
 	require.ErrorContains(t, err, "context canceled")
 }
 
+// psLiteral quotes a path as a PowerShell single-quoted literal, where
+// backslashes and spaces need no escaping.
+func psLiteral(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+}
+
 func TestExtractZip(t *testing.T) {
 	t.Parallel()
 	if _, err := exec.LookPath("powershell"); err != nil {
@@ -78,8 +85,13 @@ func TestExtractZip(t *testing.T) {
 	require.NoError(t, os.WriteFile(payload, []byte("payload"), 0o644))
 
 	archivePath := filepath.Join(dir, "archive with spaces.zip")
-	ps := fmt.Sprintf("Compress-Archive -LiteralPath %q -DestinationPath %q", payload, archivePath)
-	out, err := exec.CommandContext(t.Context(), "powershell", "-NoProfile", "-Command", ps).CombinedOutput()
+	ps := fmt.Sprintf(
+		"Compress-Archive -LiteralPath %s -DestinationPath %s",
+		psLiteral(payload),
+		psLiteral(archivePath),
+	)
+	out, err := exec.CommandContext(t.Context(), "powershell", "-NoProfile", "-Command", ps).
+		CombinedOutput()
 	require.NoError(t, err, string(out))
 
 	dst := filepath.Join(dir, "out")
